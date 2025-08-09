@@ -1,0 +1,337 @@
+using System;
+using System.Collections.Generic;
+using System.DirectoryServices;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Security.Principal;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Diagnostics;
+using System.IO.Compression;
+using System.ServiceProcess;
+
+namespace Stelark
+{
+    /// <summary>
+/// Stelark - Compromise Assessment Tool for Detecting ADCS Attacks
+/// Author: Muhannad Alruwais
+/// </summary>
+    public class Program
+    {
+        private static bool _intense = false;
+        
+        public static async Task<int> Main(string[] args)
+        {
+            try
+            {
+                if (args.Any(arg => string.Equals(arg, "-h", StringComparison.OrdinalIgnoreCase) || 
+                               string.Equals(arg, "--help", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PrintHelpMessage();
+                    return 0;
+                }
+
+                _intense = args.Any(arg => string.Equals(arg, "-Intense", StringComparison.OrdinalIgnoreCase) || 
+                                          string.Equals(arg, "--intense", StringComparison.OrdinalIgnoreCase));                
+                Console.WriteLine("Stelark Compromise Assessment Tool for Detecting ADCS Attacks");
+                Console.WriteLine("Author: Muhannad Alruwais");
+                Console.WriteLine("The Ark that hunts the stars");
+                Console.WriteLine("Version: 1.0");
+                Console.WriteLine("==========================");
+
+
+                using (var stelark = new Stelark())
+                {
+                    await stelark.RunAsync(_intense);
+                }
+                
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("Fatal error occurred", ex);
+                ConsoleHelper.WriteError($"Fatal error: {ex.Message}");
+                return 1;
+            }
+        }
+
+        private static void PrintHelpMessage()
+        {
+            Console.WriteLine("Stelark Compromise Assessment Tool for Detecting ADCS Attacks");
+            Console.WriteLine("Author: Muhannad Alruwais");
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine("★ The Ark that hunts the stars.");
+            Console.ResetColor();
+            Console.WriteLine("Version: 1.0");
+            Console.WriteLine("==============================");
+            Console.WriteLine("\nUSAGE:");
+            Console.WriteLine("  Stelark.exe [OPTIONS]");
+            Console.WriteLine("\nOPTIONS:");
+            Console.WriteLine("  -Intense, --intense    Runs all checks and performs a full enumeration of all issued certificates.");
+            Console.WriteLine("                         This can be slow in large environments.");
+            Console.WriteLine("\n  -h, --help               Displays this help message.");
+            Console.WriteLine("\nBy default, with no options, the tool runs all checks except for the intense certificate enumeration.");
+        }
+    }
+
+    public class Stelark : IDisposable
+    {
+        private readonly GlobalState _state;
+        private readonly CertificateAnalyzer _certAnalyzer;
+        private readonly TemplateAnalyzer _templateAnalyzer;
+        private readonly CAAnalyzer _caAnalyzer;
+        private readonly OutputManager _outputManager;
+
+        public Stelark()
+        {
+            _state = new GlobalState();
+            _certAnalyzer = new CertificateAnalyzer(_state);
+            _templateAnalyzer = new TemplateAnalyzer(_state);
+            _caAnalyzer = new CAAnalyzer(_state);
+            _outputManager = new OutputManager(_state);
+        }
+
+        public async Task RunAsync(bool intense)
+        {
+            try
+            {
+                Initialize();
+                
+                if (_state.AllowIntenseFallback)
+                {
+                    if (intense)
+                    {
+                        await RunIntenseModeOnlyAsync();
+                    }
+                    else
+                    {
+                        ConsoleHelper.WriteWarning("To Hunt for Suspicious Certificates, Re-run with -Intense.");
+                    }
+                    return;
+                }
+
+                await RunFullAnalysisAsync(intense);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("Analysis failed", ex);
+                ConsoleHelper.WriteError($"Analysis failed: {ex.Message}");
+                throw;
+            }
+        }
+
+        private void Initialize()
+        {
+            ConsoleHelper.WriteInfo("Initializing Stelark...");
+            Logger.LogInfo("Initializing Stelark...");
+            
+            if (!IsCertutilAvailable())
+            {
+                ConsoleHelper.WriteError("certutil.exe not found in PATH. This tool is required for certificate enumeration.");
+                throw new InvalidOperationException("certutil.exe is a required dependency and was not found in your system's PATH.");
+            }
+            
+            _state.OutputDir = Path.Combine(AppContext.BaseDirectory, "Stelark");
+            Directory.CreateDirectory(_state.OutputDir);
+            
+            Logger.Initialize(_state.OutputDir);
+            Logger.LogInfo($"Output directory created: {_state.OutputDir}");
+            Logger.LogInfo($"Running on: {Environment.MachineName} ({Environment.UserName})");
+            Logger.LogInfo($"Operating System: {Environment.OSVersion}");
+            Logger.LogInfo($"Current Directory: {Environment.CurrentDirectory}");
+            
+            _caAnalyzer.FindCAServers();
+            _caAnalyzer.TestIsLocalCAServer();
+            if (!_state.FoundCAServers && IsLocalCertSvcRunning())
+            {
+                _state.IsLocalCAServer = true;
+                _state.AllowIntenseFallback = true;
+                ConsoleHelper.WriteSuccess("Local Certificate Authority service detected. Running in offline mode.");
+            Logger.LogInfo("Local Certificate Authority service detected. Running in offline mode.");
+            }
+        }
+
+        private async Task RunIntenseModeOnlyAsync()
+        {
+            Logger.LogInfo("Starting Intense Mode Only scan");
+            _state.IntenseScanRun = true;
+            await _certAnalyzer.HuntIntenseCertificatesAsync();
+            _certAnalyzer.DeduplicateIntenseCertificates();
+            
+            _outputManager.PrintFindings(true);
+            _outputManager.PrintSummary(true);
+            
+            Logger.LogInfo("Generating output files (CSV, JSON, HTML)");
+            await _outputManager.SaveFindingsAsync(true);
+            
+            Logger.Cleanup();
+            _outputManager.ZipOutputs();
+        }
+
+        private async Task RunFullAnalysisAsync(bool intense)
+        {
+            var startTime = DateTime.Now;
+            Logger.LogInfo($"Starting Full Analysis (Intense: {intense})");
+            Logger.LogInfo($"Target CA Servers: {string.Join(", ", _state.CAServerHostnames)}");
+            Logger.LogInfo($"Local CA Server: {_state.IsLocalCAServer}");
+            
+            Logger.LogInfo("Scanning for vulnerable certificate templates");
+            _templateAnalyzer.FindESC1VulnerableTemplates();
+            _templateAnalyzer.FindESC2VulnerableTemplates();
+            _templateAnalyzer.FindESC3VulnerableTemplates();
+            _templateAnalyzer.FindESC4VulnerableTemplates();
+            
+            Logger.LogInfo("Scanning for vulnerable CAs and endpoints");
+            _caAnalyzer.FindESC6VulnerableCA();
+            _caAnalyzer.FindESC7VulnerableCA();
+            await _caAnalyzer.FindESC8VulnerableEndpointsAsync();
+            
+            Logger.LogInfo("Hunting for suspicious certificates from vulnerable templates");
+            await _certAnalyzer.HuntESC1CertificatesAsync();
+            await _certAnalyzer.HuntESC2CertificatesAsync();
+            await _certAnalyzer.HuntESC3CertificatesAsync();
+            await _certAnalyzer.HuntESC4CertificatesAsync();
+            
+            if (intense)
+            {
+                Logger.LogInfo("Running Intense Mode: full certificate enumeration");
+                _state.IntenseScanRun = true;
+                await _certAnalyzer.HuntIntenseCertificatesAsync();
+                _certAnalyzer.DeduplicateIntenseCertificates();
+            }
+            
+            _outputManager.PrintFindings(false);
+            _outputManager.PrintSummary(false);
+            
+            Logger.LogInfo("Generating output files (CSV, JSON, HTML)");
+            LogFinalStatistics();
+            await _outputManager.SaveFindingsAsync(false);
+            
+            var totalTime = DateTime.Now - startTime;
+            Logger.LogInfo($"Full analysis completed in {totalTime.TotalSeconds:F2} seconds");
+            Logger.LogInfo($"Output files saved to: {_state.OutputDir}");
+            
+            Logger.Cleanup();
+            _outputManager.ZipOutputs();
+        }
+
+        private void LogFinalStatistics()
+        {
+            Logger.LogInfo("=== FINAL ANALYSIS STATISTICS ===");
+            
+            Logger.LogStatistic("ESC1 Vulnerable Templates", _state.ESC1VulnTemplates.Count, "templates allowing subject supply");
+            Logger.LogStatistic("ESC2 Vulnerable Templates", _state.ESC2VulnTemplates.Count, "templates with Any Purpose EKU");
+            Logger.LogStatistic("ESC3 Vulnerable Templates", _state.ESC3VulnTemplates.Count, "Certificate Request Agent templates");
+            Logger.LogStatistic("ESC4 Vulnerable Templates", _state.ESC4VulnTemplates.Count, "templates with dangerous DACL permissions");
+            
+            Logger.LogStatistic("ESC6 Vulnerable CAs", _state.ESC6VulnCAs.Count, "CAs with EDITF_ATTRIBUTESUBJECTALTNAME2");
+            Logger.LogStatistic("ESC7 Dangerous Permissions", _state.ESC7VulnCAPermissions.Count, "dangerous CA permissions");
+            Logger.LogStatistic("ESC8 Vulnerable Endpoints", _state.ESC8VulnEndpoints.Count, "vulnerable web endpoints");
+            
+            Logger.LogStatistic("Suspicious ESC1 Certificates", _state.SuspiciousESC1CertCount, "certificates with SAN from ESC1 templates");
+            Logger.LogStatistic("Suspicious ESC2 Certificates", _state.SuspiciousESC2CertCount, "certificates with SAN from ESC2 templates");
+            Logger.LogStatistic("Suspicious ESC3 Certificates", _state.SuspiciousESC3CertCount, "certificates with SAN from ESC3 templates");
+            Logger.LogStatistic("Suspicious ESC4 Certificates", _state.SuspiciousESC4CertCount, "certificates with SAN from ESC4 templates");
+            
+            if (_state.IntenseScanRun)
+            {
+                Logger.LogStatistic("Intense Mode Certificates", _state.IntenseUniqueCertificates.Count, "unique certificates with SAN from all templates");
+            }
+            
+            var totalVulnerableTemplates = _state.ESC1VulnTemplates.Count + _state.ESC2VulnTemplates.Count + 
+                                         _state.ESC3VulnTemplates.Count + _state.ESC4VulnTemplates.Count;
+            var totalSuspiciousCerts = _state.SuspiciousESC1CertCount + _state.SuspiciousESC2CertCount + 
+                                     _state.SuspiciousESC3CertCount + _state.SuspiciousESC4CertCount;
+            
+            Logger.LogStatistic("TOTAL Vulnerable Templates", totalVulnerableTemplates, "all ESC vulnerability types");
+            Logger.LogStatistic("TOTAL Suspicious Certificates", totalSuspiciousCerts, "all suspicious certificates found");
+            
+            Logger.LogInfo("=== END ANALYSIS STATISTICS ===");
+        }
+
+        private bool IsCertutilAvailable()
+        {
+            var paths = Environment.GetEnvironmentVariable("PATH");
+            if (paths == null) return false;
+
+            foreach (var path in paths.Split(Path.PathSeparator))
+            {
+                try
+                {
+                    var fullPath = Path.Combine(path, "certutil.exe");
+                    if (File.Exists(fullPath))
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError("Failed to check path for certutil.exe", ex);
+                }
+            }
+            return false;
+        }
+
+        private bool IsLocalCertSvcRunning()
+        {
+            try
+            {
+                using var service = new ServiceController("CertSvc");
+                return service.Status == ServiceControllerStatus.Running;
+            }
+            catch (Exception)
+            {
+                // CertSvc service not found - normal for non-CA machines
+                Logger.LogInfo("CertSvc service not found - machine is not a Certificate Authority");
+                return false;
+            }
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _caAnalyzer.Dispose();
+                Logger.Cleanup();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("Error during disposal", ex);
+            }
+        }
+    }
+
+    public static class ConsoleHelper
+    {
+        public static void WriteInfo(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"[+] {message}");
+            Console.ResetColor();
+        }
+
+        public static void WriteError(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[!] {message}");
+            Console.ResetColor();
+        }
+
+        public static void WriteWarning(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[!] {message}");
+            Console.ResetColor();
+        }
+
+        public static void WriteSuccess(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"[+] {message}");
+            Console.ResetColor();
+        }
+    }
+} 
