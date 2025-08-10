@@ -15,6 +15,13 @@ namespace Stelark
         public string OutputDir { get; set; } = string.Empty;
         public bool AllowIntenseFallback { get; set; } = false;
         
+        // Template caching for performance
+        public TemplateCache? CachedTemplates { get; set; } = null;
+        
+        // Memory management settings (simplified for small certificate data)
+        public int BatchSize { get; set; } = 50000; // Process 50k certs at a time (simple batching)
+        public long MaxMemoryUsageMB { get; set; } = 3072; // 3GB limit
+        
         public List<VulnerableTemplate> ESC1VulnTemplates { get; set; } = new();
         public List<VulnerableTemplate> ESC2VulnTemplates { get; set; } = new();
         public List<VulnerableTemplate> ESC3VulnTemplates { get; set; } = new();
@@ -29,6 +36,8 @@ namespace Stelark
         public List<Certificate> ESC4Certificates { get; set; } = new();
         public List<Certificate> IntenseCertificates { get; set; } = new();
         public List<Certificate> IntenseUniqueCertificates { get; set; } = new();
+        
+        public int IntenseModeProcessedCount { get; set; } = 0; // Total certificates processed in intense mode
         
         public int SuspiciousESC1CertCount { get; set; } = 0;
         public int SuspiciousESC2CertCount { get; set; } = 0;
@@ -123,7 +132,23 @@ namespace Stelark
         // Enhanced SAN properties
         public bool ContainsSAN { get; set; } = false;
         public string SANUPN { get; set; } = string.Empty;
+        
+        // Client Information properties
+        public string Machine { get; set; } = string.Empty;
+        public string Process { get; set; } = string.Empty;
 
+    }
+
+    public class TemplateCache
+    {
+        public DateTime CacheTime { get; set; }
+        public Dictionary<string, bool> PublishedTemplates { get; set; } = new();
+        public List<VulnerableTemplate> ESC1Templates { get; set; } = new();
+        public List<VulnerableTemplate> ESC2Templates { get; set; } = new();
+        public List<VulnerableTemplate> ESC3Templates { get; set; } = new();
+        public List<VulnerableTemplate> ESC4Templates { get; set; } = new();
+        public bool IsValid => DateTime.Now.Subtract(CacheTime).TotalMinutes < 30; // Cache valid for 30 minutes
+        public bool HasResults => ESC1Templates.Count > 0 || ESC2Templates.Count > 0 || ESC3Templates.Count > 0 || ESC4Templates.Count > 0;
     }
 
     public class TemplateInfo

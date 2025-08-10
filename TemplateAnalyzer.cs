@@ -25,6 +25,14 @@ namespace Stelark
                 return;
             }
 
+            // Check cache first
+            if (_state.CachedTemplates?.IsValid == true && _state.CachedTemplates.ESC1Templates.Any())
+            {
+                Logger.LogInfo("Using cached ESC1 vulnerable templates");
+                _state.ESC1VulnTemplates = _state.CachedTemplates.ESC1Templates;
+                return;
+            }
+
             ConsoleHelper.WriteInfo("Enumerating vulnerable certificate templates to ESC1...");
             Logger.LogInfo("Enumerating vulnerable certificate templates to ESC1...");
             
@@ -34,6 +42,12 @@ namespace Stelark
                 allowAnyPurpose: false,
                 mode: "EKU"
             );
+            
+            // Update cache
+            if (_state.CachedTemplates == null)
+                _state.CachedTemplates = new TemplateCache();
+            _state.CachedTemplates.ESC1Templates = _state.ESC1VulnTemplates;
+            _state.CachedTemplates.CacheTime = DateTime.Now;
         }
 
         public void FindESC2VulnerableTemplates()
@@ -41,6 +55,14 @@ namespace Stelark
             if (!_state.IsLocalCAServer)
             {
                 _state.ESC2VulnTemplates.Clear();
+                return;
+            }
+
+            // Check cache first
+            if (_state.CachedTemplates?.IsValid == true && _state.CachedTemplates.ESC2Templates.Any())
+            {
+                Logger.LogInfo("Using cached ESC2 vulnerable templates");
+                _state.ESC2VulnTemplates = _state.CachedTemplates.ESC2Templates;
                 return;
             }
 
@@ -53,6 +75,12 @@ namespace Stelark
                 allowAnyPurpose: true,
                 mode: "EKU"
             );
+            
+            // Update cache
+            if (_state.CachedTemplates == null)
+                _state.CachedTemplates = new TemplateCache();
+            _state.CachedTemplates.ESC2Templates = _state.ESC2VulnTemplates;
+            _state.CachedTemplates.CacheTime = DateTime.Now;
         }
 
         public void FindESC3VulnerableTemplates()
@@ -60,6 +88,14 @@ namespace Stelark
             if (!_state.IsLocalCAServer)
             {
                 _state.ESC3VulnTemplates.Clear();
+                return;
+            }
+
+            // Check cache first
+            if (_state.CachedTemplates?.IsValid == true && _state.CachedTemplates.ESC3Templates.Any())
+            {
+                Logger.LogInfo("Using cached ESC3 vulnerable templates");
+                _state.ESC3VulnTemplates = _state.CachedTemplates.ESC3Templates;
                 return;
             }
 
@@ -72,6 +108,12 @@ namespace Stelark
                 allowAnyPurpose: false,
                 mode: "EKU"
             );
+            
+            // Update cache
+            if (_state.CachedTemplates == null)
+                _state.CachedTemplates = new TemplateCache();
+            _state.CachedTemplates.ESC3Templates = _state.ESC3VulnTemplates;
+            _state.CachedTemplates.CacheTime = DateTime.Now;
         }
 
         public void FindESC4VulnerableTemplates()
@@ -82,16 +124,29 @@ namespace Stelark
                 return;
             }
 
+            // Check cache first
+            if (_state.CachedTemplates?.IsValid == true && _state.CachedTemplates.ESC4Templates.Any())
+            {
+                Logger.LogInfo("Using cached ESC4 vulnerable templates");
+                _state.ESC4VulnTemplates = _state.CachedTemplates.ESC4Templates;
+                return;
+            }
+
             ConsoleHelper.WriteInfo("Enumerating vulnerable certificate templates to ESC4...");
             Logger.LogInfo("Enumerating vulnerable certificate templates to ESC4...");
             
-
             var privilegedSids = BuildPrivilegedSidsLookup();
             
             _state.ESC4VulnTemplates = FindVulnerableTemplatesGeneric(
                 privilegedSids: privilegedSids,
                 mode: "DACL"
             );
+            
+            // Update cache
+            if (_state.CachedTemplates == null)
+                _state.CachedTemplates = new TemplateCache();
+            _state.CachedTemplates.ESC4Templates = _state.ESC4VulnTemplates;
+            _state.CachedTemplates.CacheTime = DateTime.Now;
         }
 
         private List<VulnerableTemplate> FindVulnerableTemplatesGeneric(
@@ -944,12 +999,19 @@ namespace Stelark
 
         private Dictionary<string, bool> GetPublishedCertificateTemplates()
         {
+            // Check cache first
+            if (_state.CachedTemplates?.IsValid == true)
+            {
+                Logger.LogInfo("Using cached published certificate templates");
+                return _state.CachedTemplates.PublishedTemplates;
+            }
+            
             var publishedTemplates = new Dictionary<string, bool>();
             
             try
             {
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                Logger.LogInfo("Getting published certificate templates...");
+                Logger.LogInfo("Getting published certificate templates from AD...");
 
                 DirectoryEntry? rootDSE = null;
                 string? configNC = null;
@@ -1068,6 +1130,12 @@ namespace Stelark
                 
                 stopwatch.Stop();
                 Logger.LogInfo($"Published templates retrieved in {stopwatch.ElapsedMilliseconds}ms");
+                
+                // Update cache
+                if (_state.CachedTemplates == null)
+                    _state.CachedTemplates = new TemplateCache();
+                _state.CachedTemplates.PublishedTemplates = publishedTemplates;
+                _state.CachedTemplates.CacheTime = DateTime.Now;
             }
             catch (Exception ex)
             {
@@ -1227,6 +1295,8 @@ namespace Stelark
 
             return templateLookup;
         }
+
+
 
         private T GetPropertyValue<T>(SearchResult result, string propertyName)
         {

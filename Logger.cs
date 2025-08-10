@@ -14,6 +14,7 @@ namespace Stelark
         private static FileStream? _outputFileStream;
         private static StreamWriter? _outputStreamWriter;
         private static TeeTextWriter? _teeWriter;
+        private static DateTime _sessionStartTime;
 
         public static void Initialize(string outputDir)
         {
@@ -21,6 +22,8 @@ namespace Stelark
             _errorLogPath = Path.Combine(outputDir, "stelark.log");
             _outputLogPath = Path.Combine(outputDir, "output.txt");
 
+            // Record session start time
+            _sessionStartTime = DateTime.Now;
 
             Directory.CreateDirectory(outputDir);
 
@@ -235,7 +238,7 @@ namespace Stelark
                 {
                     var separator = new string('=', 80);
                     var logEntry = $"{separator}\n" +
-                                   $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SESSION START: Stelark v1.0\n" +
+                                   $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SESSION START: Stelark v1.1 - Memory Optimized\n" +
                                    $"{separator}\n";
                     File.AppendAllText(_errorLogPath, logEntry);
                 }
@@ -255,9 +258,31 @@ namespace Stelark
             {
                 try
                 {
+                    var endTime = DateTime.Now;
+                    var scanDuration = endTime - _sessionStartTime;
                     var separator = new string('=', 80);
+                    
+                    // Format duration in a readable way
+                    string durationText;
+                    if (scanDuration.TotalDays >= 1)
+                    {
+                        durationText = $"{scanDuration.Days}d {scanDuration.Hours}h {scanDuration.Minutes}m {scanDuration.Seconds}s";
+                    }
+                    else if (scanDuration.TotalHours >= 1)
+                    {
+                        durationText = $"{scanDuration.Hours}h {scanDuration.Minutes}m {scanDuration.Seconds}s";
+                    }
+                    else if (scanDuration.TotalMinutes >= 1)
+                    {
+                        durationText = $"{scanDuration.Minutes}m {scanDuration.Seconds}s";
+                    }
+                    else
+                    {
+                        durationText = $"{scanDuration.TotalSeconds:F1}s";
+                    }
+                    
                     var logEntry = $"{separator}\n" +
-                                   $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SESSION END: Stelark scan completed\n" +
+                                   $"[{endTime:yyyy-MM-dd HH:mm:ss}] SESSION END: Stelark scan completed (Duration: {durationText})\n" +
                                    $"{separator}\n\n";
                     File.AppendAllText(_errorLogPath, logEntry);
                 }

@@ -51,7 +51,16 @@ namespace Stelark
             _state.SuspiciousESC1CertCount = _state.ESC1Certificates.Count(c => c.IsSuspicious);
             
             Logger.LogQuery("Certificate Hunt", "ESC1 Templates", _state.ESC1Certificates.Count);
+            Logger.LogStatistic("Total ESC1 Certificates Analyzed", _state.ESC1Certificates.Count, "certificates found from ESC1 vulnerable templates");
             Logger.LogStatistic("Suspicious ESC1 Certificates", _state.SuspiciousESC1CertCount, "certificates with Subject Alternative Names");
+            
+            var cert1Text = _state.ESC1Certificates.Count == 1 ? "certificate" : "certificates";
+            var susp1Text = _state.SuspiciousESC1CertCount == 1 ? "certificate" : "certificates";
+            ConsoleHelper.WriteInfo($"ESC1 Analysis: {_state.ESC1Certificates.Count:N0} {cert1Text} analyzed, {_state.SuspiciousESC1CertCount:N0} suspicious found");
+            if (_state.SuspiciousESC1CertCount > 0)
+            {
+                ConsoleHelper.WriteSuccess($"  Found {_state.SuspiciousESC1CertCount} {susp1Text} with Subject Alternative Names from ESC1 templates");
+            }
             
             foreach (var cert in _state.ESC1Certificates.Where(c => c.IsSuspicious))
             {
@@ -89,6 +98,17 @@ namespace Stelark
                     Logger.LogCertificateAnalysis(c.RequestID, "SAN", c.SANUPN, "Subject Alternative Name present", "ESC2");
             });
             _state.SuspiciousESC2CertCount = _state.ESC2Certificates.Count(c => c.IsSuspicious);
+            
+            Logger.LogStatistic("Total ESC2 Certificates Analyzed", _state.ESC2Certificates.Count, "certificates found from ESC2 vulnerable templates");
+            Logger.LogStatistic("Suspicious ESC2 Certificates", _state.SuspiciousESC2CertCount, "certificates with Subject Alternative Names");
+            
+            var cert2Text = _state.ESC2Certificates.Count == 1 ? "certificate" : "certificates";
+            var susp2Text = _state.SuspiciousESC2CertCount == 1 ? "certificate" : "certificates";
+            ConsoleHelper.WriteInfo($"ESC2 Analysis: {_state.ESC2Certificates.Count:N0} {cert2Text} analyzed, {_state.SuspiciousESC2CertCount:N0} suspicious found");
+            if (_state.SuspiciousESC2CertCount > 0)
+            {
+                ConsoleHelper.WriteSuccess($"  Found {_state.SuspiciousESC2CertCount} {susp2Text} with Subject Alternative Names from ESC2 templates");
+            }
         }
 
         public async Task HuntESC3CertificatesAsync()
@@ -120,6 +140,17 @@ namespace Stelark
                     Logger.LogCertificateAnalysis(c.RequestID, "SAN", c.SANUPN, "Subject Alternative Name present", "ESC3");
             });
             _state.SuspiciousESC3CertCount = _state.ESC3Certificates.Count(c => c.IsSuspicious);
+            
+            Logger.LogStatistic("Total ESC3 Certificates Analyzed", _state.ESC3Certificates.Count, "certificates found from ESC3 vulnerable templates");
+            Logger.LogStatistic("Suspicious ESC3 Certificates", _state.SuspiciousESC3CertCount, "certificates with Subject Alternative Names");
+            
+            var cert3Text = _state.ESC3Certificates.Count == 1 ? "certificate" : "certificates";
+            var susp3Text = _state.SuspiciousESC3CertCount == 1 ? "certificate" : "certificates";
+            ConsoleHelper.WriteInfo($"ESC3 Analysis: {_state.ESC3Certificates.Count:N0} {cert3Text} analyzed, {_state.SuspiciousESC3CertCount:N0} suspicious found");
+            if (_state.SuspiciousESC3CertCount > 0)
+            {
+                ConsoleHelper.WriteSuccess($"  Found {_state.SuspiciousESC3CertCount} {susp3Text} with Subject Alternative Names from ESC3 templates");
+            }
         }
 
         public async Task HuntESC4CertificatesAsync()
@@ -151,6 +182,17 @@ namespace Stelark
                     Logger.LogCertificateAnalysis(c.RequestID, "SAN", c.SANUPN, "Subject Alternative Name present", "ESC4");
             });
             _state.SuspiciousESC4CertCount = _state.ESC4Certificates.Count(c => c.IsSuspicious);
+            
+            Logger.LogStatistic("Total ESC4 Certificates Analyzed", _state.ESC4Certificates.Count, "certificates found from ESC4 vulnerable templates");
+            Logger.LogStatistic("Suspicious ESC4 Certificates", _state.SuspiciousESC4CertCount, "certificates with Subject Alternative Names");
+            
+            var cert4Text = _state.ESC4Certificates.Count == 1 ? "certificate" : "certificates";
+            var susp4Text = _state.SuspiciousESC4CertCount == 1 ? "certificate" : "certificates";
+            ConsoleHelper.WriteInfo($"ESC4 Analysis: {_state.ESC4Certificates.Count:N0} {cert4Text} analyzed, {_state.SuspiciousESC4CertCount:N0} suspicious found");
+            if (_state.SuspiciousESC4CertCount > 0)
+            {
+                ConsoleHelper.WriteSuccess($"  Found {_state.SuspiciousESC4CertCount} {susp4Text} with Subject Alternative Names from ESC4 templates");
+            }
         }
 
         public async Task HuntIntenseCertificatesAsync()
@@ -159,21 +201,137 @@ namespace Stelark
                 return;
 
             ConsoleHelper.WriteInfo("Running intense mode: full certificate enumeration (this may take a while)...");
+
             
             _state.CertutilErrorDetected_Intense = false;
             
             try
             {
-                var allCerts = await RunCertutilViewAsync();
+                MemoryManager.LogMemoryUsage("before intense enumeration");
+                
+                // Use streaming approach instead of loading all certificates at once
                 var intenseCerts = new List<Certificate>();
-                var currentBlock = new List<string>();
-
-                foreach (var line in allCerts)
+                var totalProcessed = await ProcessCertificatesInBatchesAsync(intenseCerts);
+                
+                _state.IntenseCertificates = intenseCerts;
+                _state.IntenseModeProcessedCount = totalProcessed; // Store for summary calculations
+                
+                MemoryManager.LogMemoryUsage("after intense enumeration");
+                Logger.LogStatistic("Intense Mode Certificates Processed", totalProcessed, "total certificates analyzed in intense mode");
+                Logger.LogStatistic("Intense Mode Suspicious Certificates", intenseCerts.Count, "suspicious certificates found in intense mode");
+                
+                var totalText = totalProcessed == 1 ? "certificate" : "certificates";
+                var suspText = intenseCerts.Count == 1 ? "certificate" : "certificates";
+                ConsoleHelper.WriteInfo($"Intense Mode Analysis: {totalProcessed:N0} {totalText} processed, {intenseCerts.Count:N0} suspicious found");
+                if (intenseCerts.Count > 0)
                 {
-                    if (line.StartsWith("Row ") && Regex.IsMatch(line, @"^Row [0-9]+:"))
+                    ConsoleHelper.WriteSuccess($"  Discovered {intenseCerts.Count} {suspText} with Subject Alternative Names across all templates");
+                    ConsoleHelper.WriteInfo($"  Note: Results will be deduplicated against ESC1-4 findings to show only unique certificates");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("Failed to run intense certificate enumeration", ex);
+                ConsoleHelper.WriteError($"Failed to run intense certificate enumeration: {ex.Message}");
+                _state.CertutilErrorDetected_Intense = true;
+            }
+        }
+
+        private async Task<int> ProcessCertificatesInBatchesAsync(List<Certificate> intenseCerts)
+        {
+            // Initialize fast lookup tables for performance
+            InitializeFastLookups();
+            
+            var currentBlock = new List<string>();
+            var totalCertificatesProcessed = 0;
+            var batchCount = 0;
+            
+            // Performance tracking
+            var skippedNoSAN = 0;
+            var skippedAlreadyAnalyzed = 0; // Templates already analyzed by normal ESC scans
+            var skippedAlreadyReported = 0;
+            var fullParsed = 0;
+            
+            await foreach (var line in StreamCertutilViewAsync())
+            {
+                if (line.StartsWith("Row ") && Regex.IsMatch(line, @"^Row [0-9]+:"))
+                {
+                    if (currentBlock.Count > 0)
                     {
-                        if (currentBlock.Count > 0)
+                        totalCertificatesProcessed++;
+                        
+                        // FAST DETECTION: Step 1 - Check for SAN first (immediate skip if no SAN)
+                        if (!HasSANInBlock(currentBlock))
                         {
+                            // Skip - no SAN means not suspicious
+                            skippedNoSAN++;
+                            currentBlock.Clear();
+                            continue;
+                        }
+                        
+                        // FAST DETECTION: Step 2 - Extract template name and check if already analyzed
+                        var templateName = ExtractTemplateNameFromBlock(currentBlock);
+                        if (IsTemplateVulnerable(templateName))
+                        {
+                            // Skip - template already analyzed by normal ESC scans
+                            skippedAlreadyAnalyzed++;
+                            currentBlock.Clear();
+                            continue;
+                        }
+                        
+                        // FAST DETECTION: Step 3 - Check if already reported by ESC1-4
+                        var requestId = ExtractRequestIDFromBlock(currentBlock);
+                        if (IsAlreadyReported(requestId))
+                        {
+                            // Skip - already found in normal ESC analysis
+                            skippedAlreadyReported++;
+                            currentBlock.Clear();
+                            continue;
+                        }
+                        
+                        // Only do full parsing for certificates that pass all fast checks
+                        fullParsed++;
+                        var certObj = ParseCertutilCertBlock(currentBlock);
+                        if (certObj != null && !string.IsNullOrEmpty(certObj.RequestID) && certObj.IsSuspicious)
+                        {
+                            certObj.RequestID = certObj.RequestID.NormalizeRequestID();
+                            certObj.RawCertutilBlock = string.Join("\n", currentBlock);
+                            certObj.Source = "Intense";
+                            intenseCerts.Add(certObj);
+                        }
+                        
+                        // Check memory and batch limits
+                        if (totalCertificatesProcessed % _state.BatchSize == 0)
+                        {
+                            batchCount++;
+                            Logger.LogInfo($"Processed batch {batchCount} ({totalCertificatesProcessed} certificates total, {intenseCerts.Count} suspicious)");
+                            ConsoleHelper.WriteInfo($"Batch {batchCount} complete: {totalCertificatesProcessed:N0} certificates processed, {intenseCerts.Count:N0} suspicious found");
+                            
+
+                            
+
+                        }
+                    }
+                    currentBlock.Clear();
+                }
+                currentBlock.Add(line);
+            }
+
+            // Process the last block
+            if (currentBlock.Count > 0)
+            {
+                totalCertificatesProcessed++;
+                
+                // Apply fast detection to last block too
+                if (HasSANInBlock(currentBlock))
+                {
+                    var templateName = ExtractTemplateNameFromBlock(currentBlock);
+                    if (!IsTemplateVulnerable(templateName))
+                    {
+                        var requestId = ExtractRequestIDFromBlock(currentBlock);
+                        if (!IsAlreadyReported(requestId))
+                        {
+                            fullParsed++;
                             var certObj = ParseCertutilCertBlock(currentBlock);
                             if (certObj != null && !string.IsNullOrEmpty(certObj.RequestID) && certObj.IsSuspicious)
                             {
@@ -183,32 +341,35 @@ namespace Stelark
                                 intenseCerts.Add(certObj);
                             }
                         }
-                        currentBlock.Clear();
+                        else
+                        {
+                            skippedAlreadyReported++;
+                        }
                     }
-                    currentBlock.Add(line);
-                }
-
-                // Process the last block
-                if (currentBlock.Count > 0)
-                {
-                    var certObj = ParseCertutilCertBlock(currentBlock);
-                    if (certObj != null && !string.IsNullOrEmpty(certObj.RequestID) && certObj.IsSuspicious)
+                    else
                     {
-                        certObj.RequestID = certObj.RequestID.NormalizeRequestID();
-                        certObj.RawCertutilBlock = string.Join("\n", currentBlock);
-                        certObj.Source = "Intense";
-                        intenseCerts.Add(certObj);
+                        skippedAlreadyAnalyzed++;
                     }
                 }
+                else
+                {
+                    skippedNoSAN++;
+                }
+            }
 
-                _state.IntenseCertificates = intenseCerts;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("Failed to run intense certificate enumeration", ex);
-                ConsoleHelper.WriteError($"Failed to run intense certificate enumeration: {ex.Message}");
-                _state.CertutilErrorDetected_Intense = true;
-            }
+            // Log performance improvements
+            var totalSkipped = skippedNoSAN + skippedAlreadyAnalyzed + skippedAlreadyReported;
+            var skipPercentage = totalCertificatesProcessed > 0 ? (totalSkipped * 100.0 / totalCertificatesProcessed) : 0;
+            
+            Logger.LogInfo($"Fast Detection Performance: {skipPercentage:F1}% certificates skipped without full parsing");
+            Logger.LogInfo($"  - No SAN: {skippedNoSAN:N0} certificates");
+            Logger.LogInfo($"  - Already analyzed templates: {skippedAlreadyAnalyzed:N0} certificates");
+            Logger.LogInfo($"  - Already reported: {skippedAlreadyReported:N0} certificates");
+            Logger.LogInfo($"  - Full parsing for historical analysis: {fullParsed:N0} certificates");
+            
+            ConsoleHelper.WriteInfo($"Fast detection optimization: {skipPercentage:F1}% parsing avoided ({totalSkipped:N0} of {totalCertificatesProcessed:N0})");
+            
+            return totalCertificatesProcessed;
         }
 
         public void DeduplicateIntenseCertificates()
@@ -255,10 +416,14 @@ namespace Stelark
             var templateLookup = BuildTemplateLookup(templates);
             var vulnerabilityType = templates.FirstOrDefault()?.VulnerabilityType;
 
+            MemoryManager.LogMemoryUsage($"before hunting {vulnerabilityType} certificates");
+
             foreach (var template in templates)
             {
                 try
                 {
+
+
                     var certs = await FindCertificatesByTemplateAsync(template.DisplayName, template.OID, templateLookup, vulnerabilityType);
                     
                     var filteredCerts = certs.Where(cert =>
@@ -271,6 +436,8 @@ namespace Stelark
                     );
 
                     allFoundCerts.AddRange(filteredCerts);
+                    
+
                 }
                 catch (Exception ex)
                 {
@@ -279,9 +446,14 @@ namespace Stelark
                 }
             }
 
-            return allFoundCerts.GroupBy(c => new { c.Serial, c.RequestID })
-                                .Select(g => g.First())
-                                .ToList();
+            var deduplicatedCerts = allFoundCerts.GroupBy(c => new { c.Serial, c.RequestID })
+                                                 .Select(g => g.First())
+                                                 .ToList();
+
+            MemoryManager.LogMemoryUsage($"after hunting {vulnerabilityType} certificates");
+            Logger.LogInfo($"Found {deduplicatedCerts.Count} unique certificates for {vulnerabilityType} templates");
+            
+            return deduplicatedCerts;
         }
 
         private async Task<List<Certificate>> FindCertificatesByTemplateAsync(
@@ -333,6 +505,11 @@ namespace Stelark
 
             var parsedCerts = new List<Certificate>();
             var currentBlock = new List<string>();
+            
+            // Performance tracking
+            var totalProcessed = 0;
+            var skippedNoSAN = 0;
+            var fullParsed = 0;
 
             foreach (var line in certutilOutputs)
             {
@@ -340,6 +517,19 @@ namespace Stelark
                 {
                     if (currentBlock.Count > 0)
                     {
+                        totalProcessed++;
+                        
+                        // FAST DETECTION: Check for SAN first (immediate skip if no SAN)
+                        if (!HasSANInBlock(currentBlock))
+                        {
+                            // Skip - no SAN means not suspicious for ADCS attacks
+                            skippedNoSAN++;
+                            currentBlock.Clear();
+                            continue;
+                        }
+                        
+                        // Only do full parsing for certificates that have SAN
+                        fullParsed++;
                         var certObj = ParseCertutilCertBlock(currentBlock);
                         if (certObj != null)
                         {
@@ -355,13 +545,31 @@ namespace Stelark
 
             if (currentBlock.Count > 0)
             {
-                var certObj = ParseCertutilCertBlock(currentBlock);
-                if (certObj != null)
+                totalProcessed++;
+                
+                // Apply fast detection to last block too
+                if (HasSANInBlock(currentBlock))
                 {
-                    certObj.RawCertutilBlock = string.Join("\n", currentBlock);
-                    ProcessCertificateTemplate(certObj, templateLookup);
-                    parsedCerts.Add(certObj);
+                    fullParsed++;
+                    var certObj = ParseCertutilCertBlock(currentBlock);
+                    if (certObj != null)
+                    {
+                        certObj.RawCertutilBlock = string.Join("\n", currentBlock);
+                        ProcessCertificateTemplate(certObj, templateLookup);
+                        parsedCerts.Add(certObj);
+                    }
                 }
+                else
+                {
+                    skippedNoSAN++;
+                }
+            }
+            
+            // Log performance improvements for this template
+            if (totalProcessed > 0)
+            {
+                var skipPercentage = (skippedNoSAN * 100.0 / totalProcessed);
+                Logger.LogInfo($"Template {templateDisplayName}: {skipPercentage:F1}% certificates skipped without parsing ({skippedNoSAN:N0} of {totalProcessed:N0})");
             }
 
             return parsedCerts;
@@ -515,6 +723,9 @@ namespace Stelark
             // Enhanced SAN UPN parsing with ESC1/ESC6 detection
             ParseSubjectAlternativeNames(cert, text);
 
+            // Parse Client Information (Machine and Process)
+            ParseClientInformation(cert, text);
+
             // Parse EKUs
             cert.EKUs = ParseEKUs(text);
 
@@ -612,6 +823,107 @@ namespace Stelark
             return lookup;
         }
 
+        // Fast detection methods for performance optimization
+        private bool HasSANInBlock(List<string> block)
+        {
+            // Quick SAN detection without full parsing
+            foreach (var line in block)
+            {
+                if (line.Contains("SAN:upn=") || line.Contains("upn="))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private string? ExtractTemplateNameFromBlock(List<string> block)
+        {
+            // Fast template name extraction without full parsing
+            foreach (var line in block)
+            {
+                if (line.Contains("Certificate Template:"))
+                {
+                    // Try to extract template name quickly
+                    if (TryExtractMatch(line, @"Certificate Template: ""([^""]+)""", out var templateName))
+                    {
+                        return templateName.Trim();
+                    }
+                    else if (TryExtractMatch(line, @"Certificate Template: ([^\s(]+)", out var templateMatch))
+                    {
+                        return templateMatch.Trim();
+                    }
+                }
+            }
+            return null;
+        }
+
+        private string? ExtractRequestIDFromBlock(List<string> block)
+        {
+            // Fast RequestID extraction without full parsing
+            foreach (var line in block)
+            {
+                if (line.Contains("Request ID:"))
+                {
+                    if (TryExtractMatch(line, @"Request ID: ""?([^""\r\n]+)""?", out var requestId))
+                    {
+                        return requestId.NormalizeRequestID();
+                    }
+                }
+            }
+            return null;
+        }
+
+        private HashSet<string>? _vulnerableTemplateNames;
+        private HashSet<string>? _reportedRequestIds;
+
+        private void InitializeFastLookups()
+        {
+            // Build fast lookup sets for template names
+            _vulnerableTemplateNames = new HashSet<string>();
+            foreach (var template in _state.ESC1VulnTemplates.Concat(_state.ESC2VulnTemplates)
+                                           .Concat(_state.ESC3VulnTemplates).Concat(_state.ESC4VulnTemplates))
+            {
+                _vulnerableTemplateNames.Add(template.DisplayName);
+                _vulnerableTemplateNames.Add(template.CN);
+                if (!string.IsNullOrEmpty(template.OID))
+                    _vulnerableTemplateNames.Add(template.OID);
+            }
+
+            // Build fast lookup set for already reported certificate IDs
+            _reportedRequestIds = new HashSet<string>();
+            foreach (var cert in _state.ESC1Certificates.Concat(_state.ESC2Certificates)
+                                      .Concat(_state.ESC3Certificates).Concat(_state.ESC4Certificates))
+            {
+                if (!string.IsNullOrEmpty(cert.RequestID))
+                    _reportedRequestIds.Add(cert.RequestID);
+            }
+        }
+
+        private bool IsTemplateVulnerable(string? templateName)
+        {
+            if (string.IsNullOrEmpty(templateName) || _vulnerableTemplateNames == null)
+                return false;
+
+            return _vulnerableTemplateNames.Contains(templateName);
+        }
+
+        private bool IsAlreadyReported(string? requestId)
+        {
+            if (string.IsNullOrEmpty(requestId) || _reportedRequestIds == null)
+                return false;
+
+            return _reportedRequestIds.Contains(requestId);
+        }
+
+        private async IAsyncEnumerable<string> StreamCertutilViewAsync()
+        {
+            await foreach (var line in StreamCertutilAsync("-v -view"))
+            {
+                yield return line;
+            }
+        }
+
         private async Task<List<string>> RunCertutilViewAsync()
         {
             return await RunCertutilAsync("-v -view");
@@ -620,6 +932,81 @@ namespace Stelark
         private async Task<List<string>> RunCertutilRestrictAsync(string restriction)
         {
             return await RunCertutilAsync($"-view -restrict \"{restriction}\"");
+        }
+
+        private async IAsyncEnumerable<string> StreamCertutilAsync(string arguments)
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "certutil.exe",
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            var errorOutput = new List<string>();
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(30)); // Extended timeout for streaming
+
+            process.ErrorDataReceived += (sender, args) => { if (args.Data != null) errorOutput.Add(args.Data); };
+
+            Process startedProcess;
+            try
+            {
+                process.Start();
+                process.BeginErrorReadLine();
+                startedProcess = process;
+            }
+            catch (OperationCanceledException)
+            {
+                process.Kill(true);
+                throw new TimeoutException($"Certutil streaming command timed out after 30 minutes. Arguments: {arguments}");
+            }
+
+            // Stream lines outside of try-catch to avoid yield return restriction
+            var reader = startedProcess.StandardOutput;
+            string? line;
+            var lineCount = 0;
+            
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                yield return line;
+                lineCount++;
+                
+
+                
+                if (cts.Token.IsCancellationRequested)
+                    break;
+            }
+
+            try
+            {
+                await startedProcess.WaitForExitAsync(cts.Token);
+
+                if (errorOutput.Any())
+                {
+                    var firstError = errorOutput.First();
+                    if (firstError.Contains("The system cannot find the file specified."))
+                    {
+                        throw new InvalidOperationException($"Certutil command failed because the local CA database was not found. This command must be run on a CA server. Error: {firstError}");
+                    }
+                    
+                    // Log errors but don't stop streaming
+                    foreach (var error in errorOutput)
+                    {
+                        Logger.LogError($"Certutil error: {error}");
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                startedProcess.Kill(true);
+                throw new TimeoutException($"Certutil streaming command timed out after 30 minutes. Arguments: {arguments}");
+            }
         }
 
         private async Task<List<string>> RunCertutilAsync(string arguments)
@@ -639,9 +1026,19 @@ namespace Stelark
 
             var output = new List<string>();
             var errorOutput = new List<string>();
-            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(25));
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10)); // Extended timeout
 
-            process.OutputDataReceived += (sender, args) => { if (args.Data != null) output.Add(args.Data); };
+            // Memory-aware data receiving
+            process.OutputDataReceived += (sender, args) => 
+            { 
+                if (args.Data != null) 
+                {
+                    output.Add(args.Data);
+                    
+
+                }
+            };
+            
             process.ErrorDataReceived += (sender, args) => { if (args.Data != null) errorOutput.Add(args.Data); };
 
             try
@@ -665,9 +1062,10 @@ namespace Stelark
             catch (OperationCanceledException)
             {
                 process.Kill(true);
-                throw new TimeoutException($"Certutil command timed out after 5 minutes. Arguments: {arguments}");
+                throw new TimeoutException($"Certutil command timed out after 10 minutes. Arguments: {arguments}");
             }
 
+            Logger.LogInfo($"Collected {output.Count} lines from certutil command: {arguments}");
             return output;
         }
 
@@ -745,7 +1143,37 @@ namespace Stelark
             }
         }
 
+        private void ParseClientInformation(Certificate cert, string text)
+        {
+            // Look for Client Information attribute section
+            // Pattern matches various formats like:
+            // Machine: SRV-APP.XYZ.TLP
+            // Process: CertEnrollCtrl.exe
+            
+            if (TryExtractMatch(text, @"Machine:\s*=?\s*([^\r\n]+)", out var machine))
+            {
+                cert.Machine = machine.Trim();
+            }
+            else if (TryExtractMatch(text, @"Machine:\s*([^\r\n]+)", out var machineAlt))
+            {
+                cert.Machine = machineAlt.Trim();
+            }
 
+            if (TryExtractMatch(text, @"Process:\s*=?\s*([^\r\n]+)", out var process))
+            {
+                cert.Process = process.Trim();
+            }
+            else if (TryExtractMatch(text, @"Process:\s*([^\r\n]+)", out var processAlt))
+            {
+                cert.Process = processAlt.Trim();
+            }
+
+            // Set N/A for empty fields
+            if (string.IsNullOrEmpty(cert.Machine))
+                cert.Machine = "N/A";
+            if (string.IsNullOrEmpty(cert.Process))
+                cert.Process = "N/A";
+        }
 
         private bool IsDefaultTemplate(string templateName)
         {

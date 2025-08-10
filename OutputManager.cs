@@ -34,7 +34,7 @@ namespace Stelark
         {
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("==================== SUMMARY ====================");
+            Console.WriteLine("==================== STELARK FINDINGS ====================");
             Console.ResetColor();
 
             if (intenseOnly)
@@ -46,7 +46,7 @@ namespace Stelark
                 PrintFullSummary();
             }
 
-            Console.WriteLine("=================================================");
+            Console.WriteLine("==========================================================");
         }
 
         public async Task SaveFindingsAsync(bool intenseOnly)
@@ -220,13 +220,13 @@ namespace Stelark
         
         private void WriteCertificateCsvHeader(StreamWriter writer)
         {
-            writer.WriteLine("Source,RequestID,Requester,SubjectAlternativeName,IsSuspicious,TemplateName,Status,SubmissionDate,EffectiveDate,ExpirationDate,Serial,CertHash");
+            writer.WriteLine("Source,RequestID,Requester,SubjectAlternativeName,IsSuspicious,TemplateName,Status,SubmissionDate,EffectiveDate,ExpirationDate,Serial,CertHash,Machine,Process");
         }
 
         private void WriteCertificateCsvRow(StreamWriter writer, Certificate cert)
         {
             var sanValue = cert.ContainsSAN ? cert.SANUPN : "N/A";
-            writer.WriteLine($"\"{cert.Source}\",\"{cert.RequestID.NormalizeRequestID()}\",\"{cert.Requester}\",\"{sanValue}\",\"{cert.IsSuspicious}\",\"{cert.Template}\",\"{cert.DispositionMsg}\",\"{cert.SubmissionDate}\",\"{cert.NotBefore}\",\"{cert.NotAfter}\",\"{cert.Serial}\",\"{cert.CertHash}\"");
+            writer.WriteLine($"\"{cert.Source}\",\"{cert.RequestID.NormalizeRequestID()}\",\"{cert.Requester}\",\"{sanValue}\",\"{cert.IsSuspicious}\",\"{cert.Template}\",\"{cert.DispositionMsg}\",\"{cert.SubmissionDate}\",\"{cert.NotBefore}\",\"{cert.NotAfter}\",\"{cert.Serial}\",\"{cert.CertHash}\",\"{cert.Machine}\",\"{cert.Process}\"");
         }
 
         private object BuildJsonFindings(bool intenseOnly)
@@ -438,7 +438,9 @@ namespace Stelark
                 NotBefore = cert.NotBefore,
                 NotAfter = cert.NotAfter,
                 SerialNumber = cert.Serial,
-                CertHash = cert.CertHash
+                CertHash = cert.CertHash,
+                Machine = cert.Machine,
+                Process = cert.Process
             };
         }
 
@@ -1006,6 +1008,12 @@ namespace Stelark
 
         private string GenerateFullReportContent()
         {
+            // Check if no CA infrastructure exists first
+            if (!_state.FoundCAServers)
+            {
+                return GenerateNoDataSection();
+            }
+
             var content = @"";
             
             // Vulnerability Distribution Chart - only show if there are actual vulnerabilities
@@ -1226,6 +1234,12 @@ namespace Stelark
 
         private string GenerateIntenseReportContent()
         {
+            // Check if no CA infrastructure exists first
+            if (!_state.FoundCAServers)
+            {
+                return GenerateNoDataSection();
+            }
+
             if (_state.IntenseUniqueCertificates.Count > 0)
             {
                 return GenerateCertificatesSection(_state.IntenseUniqueCertificates, "Intense Scan - Suspicious Certificates");
@@ -1330,6 +1344,48 @@ namespace Stelark
         private string GenerateCertificatesSection(List<Certificate> certificates, string title)
         {
             var tableId = "certificatesTable";
+            
+            // Check if any certificates have Machine or Process information
+            var hasMachineData = certificates.Any(c => !string.IsNullOrEmpty(c.Machine) && c.Machine != "N/A");
+            var hasProcessData = certificates.Any(c => !string.IsNullOrEmpty(c.Process) && c.Process != "N/A");
+            
+            // Build header row conditionally
+            var headerCells = new List<string>
+            {
+                "<th>Source</th>",
+                "<th>Request ID</th>",
+                "<th>Requester</th>",
+                "<th>SAN/UPN</th>",
+                "<th>Template</th>",
+                "<th>Serial Number</th>",
+                "<th>Submission Date</th>",
+                "<th>Status</th>"
+            };
+            
+            if (hasMachineData) headerCells.Add("<th>Machine</th>");
+            if (hasProcessData) headerCells.Add("<th>Process</th>");
+            
+            // Build data rows conditionally
+            var rows = certificates.Select(cert => 
+            {
+                var cells = new List<string>
+                {
+                    $"<td><span class=\"vulnerability-badge {cert.Source.ToLower()}\">{cert.Source}</span></td>",
+                    $"<td>{cert.RequestID.NormalizeRequestID()}</td>",
+                    $"<td>{cert.Requester}</td>",
+                    $"<td>{(cert.ContainsSAN ? cert.SANUPN : "N/A")}</td>",
+                    $"<td>{cert.Template}</td>",
+                    $"<td>{cert.Serial}</td>",
+                    $"<td>{cert.SubmissionDate}</td>",
+                    $"<td>{cert.DispositionMsg}</td>"
+                };
+                
+                if (hasMachineData) cells.Add($"<td>{cert.Machine}</td>");
+                if (hasProcessData) cells.Add($"<td>{cert.Process}</td>");
+                
+                return $"<tr>{string.Join("", cells)}</tr>";
+            });
+            
             return $@"
         <div class=""section"">
             <h2>{title} ({certificates.Count})</h2>
@@ -1340,28 +1396,11 @@ namespace Stelark
                 <table id=""{tableId}"">
                     <thead>
                         <tr>
-                            <th>Source</th>
-                            <th>Request ID</th>
-                            <th>Requester</th>
-                            <th>SAN/UPN</th>
-                            <th>Template</th>
-                            <th>Serial Number</th>
-                            <th>Submission Date</th>
-                            <th>Status</th>
+                            {string.Join("", headerCells)}
                         </tr>
                     </thead>
                     <tbody>
-                        {string.Join("", certificates.Select(cert => $@"
-                        <tr>
-                            <td><span class=""vulnerability-badge {cert.Source.ToLower()}"">{cert.Source}</span></td>
-                            <td>{cert.RequestID.NormalizeRequestID()}</td>
-                            <td>{cert.Requester}</td>
-                            <td>{(cert.ContainsSAN ? cert.SANUPN : "N/A")}</td>
-                            <td>{cert.Template}</td>
-                            <td>{cert.Serial}</td>
-                            <td>{cert.SubmissionDate}</td>
-                            <td>{cert.DispositionMsg}</td>
-                        </tr>"))}
+                        {string.Join("", rows)}
                     </tbody>
                 </table>
             </div>
