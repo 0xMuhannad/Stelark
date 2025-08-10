@@ -43,7 +43,7 @@ Stelark is an enterprise Compromise Assessment tool for detecting vulnerabilitie
 ## Usage
 
 ```powershell
-# Standard scan (recommended for most assessments)
+# Standard scan
 Stelark.exe
 
 # Comprehensive scan with full certificate enumeration
