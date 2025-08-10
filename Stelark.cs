@@ -92,7 +92,7 @@ namespace Stelark
             Console.WriteLine("Stelark Compromise Assessment Tool for Detecting ADCS Attacks");
             Console.WriteLine("Author: Muhannad Alruwais");
             Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine("★ The Ark that hunts the stars.");
+            Console.WriteLine("The Ark that hunts the stars.");
             Console.ResetColor();
             Console.WriteLine("Version: 1.1");
             Console.WriteLine("==============================");
