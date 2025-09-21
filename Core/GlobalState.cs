@@ -26,10 +26,6 @@ namespace Stelark.Core
         public ProgressTracker? CurrentProgress { get; set; } = null;
 
 
-        // Resume capability
-        public string? CheckpointFilePath { get; set; } = null;
-        public bool ResumeMode { get; set; } = false;
-        public ScanCheckpoint? LastCheckpoint { get; set; } = null;
 
         public List<VulnerableTemplate> ESC1VulnTemplates { get; set; } = new();
         public List<VulnerableTemplate> ESC2VulnTemplates { get; set; } = new();
@@ -100,23 +96,6 @@ namespace Stelark.Core
         }
     }
 
-    public class ScanCheckpoint
-    {
-        public DateTime CheckpointTime { get; set; } = DateTime.Now;
-        public string Phase { get; set; } = string.Empty;
-        public int ProcessedCount { get; set; } = 0;
-        public int TotalCount { get; set; } = 0;
-        public List<string> CompletedTemplates { get; set; } = new();
-        public string CurrentTemplate { get; set; } = string.Empty;
-        public bool ESC1Complete { get; set; } = false;
-        public bool ESC2Complete { get; set; } = false;
-        public bool ESC3Complete { get; set; } = false;
-        public bool ESC4Complete { get; set; } = false;
-        public bool IntenseModeComplete { get; set; } = false;
-
-        // Date filtering for resume consistency
-        public DateTime? StartDate { get; set; } = null;
-    }
 
     public class TemplateCache
     {

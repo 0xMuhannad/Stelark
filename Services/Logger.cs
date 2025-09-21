@@ -239,7 +239,7 @@ namespace Stelark.Services
                 {
                     var separator = new string('=', 80);
                     var logEntry = $"{separator}\n" +
-                                   $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SESSION START: Stelark v1.2 - Memory Optimized\n" +
+                                   $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SESSION START: Stelark v1.3 - Memory Optimized\n" +
                                    $"{separator}\n";
                     File.AppendAllText(_errorLogPath, logEntry);
                 }

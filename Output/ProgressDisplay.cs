@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text.Json;
 using System.Threading;
 using Stelark.Core;
 using Stelark.Helpers;
@@ -67,106 +66,6 @@ namespace Stelark.Output
         }
     }
 
-    public static class CheckpointManager
-    {
-        public static void SaveCheckpoint(GlobalState state, ScanCheckpoint checkpoint)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(state.CheckpointFilePath))
-                    return;
-
-                // Ensure StartDate is preserved in checkpoint
-                checkpoint.StartDate = state.StartDate;
-
-                var json = JsonSerializer.Serialize(checkpoint, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-
-                Directory.CreateDirectory(Path.GetDirectoryName(state.CheckpointFilePath)!);
-                File.WriteAllText(state.CheckpointFilePath, json);
-
-                var dateInfo = state.StartDate.HasValue ? $" (StartDate: {DateHelper.FormatDateForDisplay(state.StartDate.Value)})" : "";
-                Logger.LogInfo($"Checkpoint saved: {checkpoint.Phase} - {checkpoint.ProcessedCount}/{checkpoint.TotalCount} processed{dateInfo}");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("Failed to save checkpoint", ex);
-            }
-        }
-
-        public static ScanCheckpoint? LoadCheckpoint(GlobalState state)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(state.CheckpointFilePath) || !File.Exists(state.CheckpointFilePath))
-                    return null;
-
-                var json = File.ReadAllText(state.CheckpointFilePath);
-                var checkpoint = JsonSerializer.Deserialize<ScanCheckpoint>(json);
-
-                if (checkpoint != null)
-                {
-                    // Validate StartDate consistency between current run and checkpoint
-                    if (!ValidateStartDateConsistency(state.StartDate, checkpoint.StartDate))
-                    {
-                        Logger.LogWarning("Checkpoint StartDate mismatch - clearing checkpoint to prevent inconsistencies");
-                        ConsoleHelper.WriteWarning("Cannot resume: different start-date filter detected. Starting fresh scan.");
-                        ClearCheckpoint(state);
-                        return null;
-                    }
-
-                    var dateInfo = checkpoint.StartDate.HasValue ? $" (StartDate: {DateHelper.FormatDateForDisplay(checkpoint.StartDate.Value)})" : "";
-                    Logger.LogInfo($"Checkpoint loaded: {checkpoint.Phase} - {checkpoint.ProcessedCount}/{checkpoint.TotalCount} processed{dateInfo}");
-                }
-
-                return checkpoint;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("Failed to load checkpoint", ex);
-                ConsoleHelper.WriteWarning("Failed to load checkpoint file - starting fresh scan");
-                return null;
-            }
-        }
-
-        private static bool ValidateStartDateConsistency(DateTime? currentStartDate, DateTime? checkpointStartDate)
-        {
-            // Both null - consistent
-            if (!currentStartDate.HasValue && !checkpointStartDate.HasValue)
-                return true;
-
-            // One null, one has value - inconsistent
-            if (currentStartDate.HasValue != checkpointStartDate.HasValue)
-                return false;
-
-            // Both have values - must match exactly
-            return currentStartDate!.Value.Date == checkpointStartDate!.Value.Date;
-        }
-
-        public static void ClearCheckpoint(GlobalState state)
-        {
-            try
-            {
-                if (!string.IsNullOrEmpty(state.CheckpointFilePath) && File.Exists(state.CheckpointFilePath))
-                {
-                    File.Delete(state.CheckpointFilePath);
-                    Logger.LogInfo("Checkpoint file cleared");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("Failed to clear checkpoint file", ex);
-            }
-        }
-
-        public static bool HasValidCheckpoint(GlobalState state)
-        {
-            var checkpoint = LoadCheckpoint(state);
-            return checkpoint != null;
-        }
-    }
 
     public static class ConfigurationValidator
     {
@@ -179,8 +78,6 @@ namespace Stelark.Output
             ValidateMemoryConfiguration(state);
 
 
-            // Resume validation
-            ValidateResumeConfiguration(state);
 
             // CA connectivity validation (will be done later in Initialize)
             ValidateOutputDirectory(state);
@@ -209,22 +106,6 @@ namespace Stelark.Output
         }
 
 
-        private static void ValidateResumeConfiguration(GlobalState state)
-        {
-            if (state.ResumeMode)
-            {
-                if (!CheckpointManager.HasValidCheckpoint(state))
-                {
-                    ConsoleHelper.WriteWarning("Resume mode requested but no valid checkpoint found");
-                    ConsoleHelper.WriteInfo("Scan will start from the beginning");
-                    state.ResumeMode = false;
-                }
-                else
-                {
-                    ConsoleHelper.WriteSuccess("Valid checkpoint found - scan will resume from previous state");
-                }
-            }
-        }
 
         private static void ValidateOutputDirectory(GlobalState state)
         {
@@ -261,10 +142,6 @@ namespace Stelark.Output
             ConsoleHelper.WriteInfo($"Adaptive Batch Size: {MemoryManager.CalculateAdaptiveBatchSize(state.MaxMemoryUsageMB):N0} certificates");
 
 
-            if (state.ResumeMode)
-            {
-                ConsoleHelper.WriteInfo("Resume Mode: Enabled (will continue from last checkpoint)");
-            }
 
             Console.WriteLine();
         }

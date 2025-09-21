@@ -19,24 +19,20 @@ namespace Stelark.Core
         private readonly CAAnalyzer _caAnalyzer;
         private readonly OutputManager _outputManager;
 
-        public StelarkCore() : this(3072, "", false, null)
+        public StelarkCore() : this(3072, "", null)
         {
         }
 
-        public StelarkCore(int maxMemoryMB, string customOutputDir) : this(maxMemoryMB, customOutputDir, false, null)
+        public StelarkCore(int maxMemoryMB, string customOutputDir) : this(maxMemoryMB, customOutputDir, null)
         {
         }
 
-        public StelarkCore(int maxMemoryMB, string customOutputDir, bool resumeMode) : this(maxMemoryMB, customOutputDir, resumeMode, null)
-        {
-        }
 
-        public StelarkCore(int maxMemoryMB, string customOutputDir, bool resumeMode, DateTime? startDate)
+        public StelarkCore(int maxMemoryMB, string customOutputDir, DateTime? startDate)
         {
             _state = new GlobalState
             {
                 MaxMemoryUsageMB = maxMemoryMB,
-                ResumeMode = resumeMode,
                 StartDate = startDate
             };
 
@@ -64,8 +60,6 @@ namespace Stelark.Core
                 _state.OutputDir = Path.Combine(AppContext.BaseDirectory, "Stelark");
             }
 
-            // Set checkpoint file path
-            _state.CheckpointFilePath = Path.Combine(_state.OutputDir, "scan_checkpoint.json");
 
             _certAnalyzer = new CertificateAnalyzer(_state);
             _templateAnalyzer = new TemplateAnalyzer(_state);
@@ -95,7 +89,7 @@ namespace Stelark.Core
                     }
                     else
                     {
-                        ConsoleHelper.WriteWarning("To analyze suspicious certificates, re-run with -Intense.");
+                        ConsoleHelper.WriteWarning("To analyze suspicious certificates, re-run with --intense.");
                     }
                     return;
                 }

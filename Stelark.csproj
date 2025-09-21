@@ -11,12 +11,12 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyTitle>Stelark</AssemblyTitle>
     <AssemblyDescription>Compromise Assessment Tool for Detecting ADCS Attacks</AssemblyDescription>
-    <AssemblyVersion>1.2</AssemblyVersion>
-    <FileVersion>1.2</FileVersion>
+    <AssemblyVersion>1.3</AssemblyVersion>
+    <FileVersion>1.3</FileVersion>
     <Company>Muhannad Alruwais</Company>
     <Product>Stelark</Product>
     <Copyright>Copyright © 2025</Copyright>
-    <Version>1.2</Version>
+    <Version>1.3</Version>
     <Authors>Muhannad Alruwais</Authors>
   </PropertyGroup>
 

@@ -29,7 +29,7 @@ namespace Stelark.Analyzers
                 ServerCertificateCustomValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
             });
             _httpClient.Timeout = TimeSpan.FromSeconds(30); // Increased timeout for large environments
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "Stelark/1.2");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "Stelark/1.3");
         }
 
         public void FindCAServers()

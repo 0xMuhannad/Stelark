@@ -27,18 +27,17 @@ namespace Stelark
                     return 0;
                 }
 
-                _intense = args.Any(arg => string.Equals(arg, "-Intense", StringComparison.OrdinalIgnoreCase) ||
-                                          string.Equals(arg, "--intense", StringComparison.OrdinalIgnoreCase));
+                _intense = args.Any(arg => string.Equals(arg, "--intense", StringComparison.OrdinalIgnoreCase));
                 Console.WriteLine("Stelark Compromise Assessment Tool for Detecting ADCS Attacks");
                 Console.WriteLine("Author: Muhannad Alruwais");
                 Console.WriteLine("The Ark that hunts the stars");
-                Console.WriteLine("Version: 1.2");
+                Console.WriteLine("Version: 1.3");
                 Console.WriteLine("==========================");
 
                 // PERFORMANCE OPTIMIZATION: Initialize performance optimizations
                 ConsoleHelper.WriteInfo("Initializing performance optimizations...");
                 PerformanceOptimizations.WarmUpOptimizations();
-                PoolStatistics.WarmUpPools();
+                PoolStatistics.WarmUpPools();   
                 ConsoleHelper.WriteSuccess("Performance optimizations initialized");
 
                 // Auto-configure memory settings (hidden from users)
@@ -46,7 +45,6 @@ namespace Stelark
 
                 // Parse command-line arguments
                 var outputDir = GetStringArgValue(args, "--output-dir", "");
-                var resumeMode = args.Any(arg => string.Equals(arg, "--resume", StringComparison.OrdinalIgnoreCase));
                 var startDateStr = GetStringArgValue(args, "--start-date", "");
 
                 // Parse and validate start date if provided
@@ -72,7 +70,7 @@ namespace Stelark
                 }
 
 
-                using (var stelark = new StelarkCore(maxMemoryMB, outputDir, resumeMode, startDate))
+                using (var stelark = new StelarkCore(maxMemoryMB, outputDir, startDate))
                 {
                     await stelark.RunAsync(_intense);
                 }
@@ -118,13 +116,13 @@ namespace Stelark
             Console.ForegroundColor = ConsoleColor.DarkGray;
             Console.WriteLine("The Ark that hunts the stars.");
             Console.ResetColor();
-            Console.WriteLine("Version: 1.2");
+            Console.WriteLine("Version: 1.3");
             Console.WriteLine("==============================");
             Console.WriteLine("A compromise assessment tool for detecting Active Directory Certificate Services (ADCS) attacks.");
             Console.WriteLine("\nUSAGE:");
             Console.WriteLine("  Stelark.exe [OPTIONS]");
             Console.WriteLine("\nOPTIONS:");
-            Console.WriteLine("  -Intense, --intense      Runs all checks and performs a full enumeration of all issued certificates.");
+            Console.WriteLine("  --intense                Runs all checks and performs a full enumeration of all issued certificates.");
             Console.WriteLine("                           This can be slow in large environments.");
 
             Console.WriteLine("\n  --output-dir <path>      Custom output directory for results and logs");
@@ -134,8 +132,6 @@ namespace Stelark
             Console.WriteLine("                           Supported formats: YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, Mon DD YYYY");
             Console.WriteLine("                           Default: analyze all certificates (no date filtering)");
 
-            Console.WriteLine("\n  --resume                 Resume an interrupted scan from the last checkpoint");
-            Console.WriteLine("                           Automatically loads previous scan progress");
 
             Console.WriteLine("\n  -h, --help               Displays this help message.");
 
@@ -146,8 +142,6 @@ namespace Stelark
             Console.WriteLine("  # Analyze certificates issued from January 1, 2024 onwards");
             Console.WriteLine("  Stelark.exe --start-date 2024-01-01 --intense");
             Console.WriteLine("  ");
-            Console.WriteLine("  # Resume an interrupted intense scan");
-            Console.WriteLine("  Stelark.exe --intense --resume");
             Console.WriteLine("  ");
             Console.WriteLine("  # Run standard scan with date filter and custom output");
             Console.WriteLine("  Stelark.exe --start-date \"Dec 1 2023\" --output-dir \"C:\\Stelark\\Results\"");

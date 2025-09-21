@@ -2347,7 +2347,7 @@ namespace Stelark
             }
             else
             {
-                ConsoleHelper.WriteInfo("Intense mode scan was skipped. For a comprehensive analysis, re-run the scan with the -Intense flag.");
+                ConsoleHelper.WriteInfo("Intense mode scan was skipped. For a comprehensive analysis, re-run the scan with the --intense flag.");
             }
         }
 
