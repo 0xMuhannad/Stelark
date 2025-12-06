@@ -1,9 +1,9 @@
 # Stelark
 ### The Ark that hunts the stars
 
-**Compromise Assessment Tool for Detecting AD CS Attacks**
+**Compromise Assessment/Threat Hunting Tool for Detecting AD CS Attacks**
 
-Stelark is an enterprise Compromise Assessment tool for detecting vulnerabilities and exploitation in Active Directory Certificate Services (AD CS) environments. It identifies known AD CS attack paths (ESC1–ESC8) and hunts for suspicious certificates that may indicate active or historical abuse for AD CS privilege escalation.
+Stelark is an enterprise Compromise Assessment/Threat Hunting tool for detecting vulnerabilities and exploitation in Active Directory Certificate Services (AD CS) environments. It identifies known AD CS attack paths (ESC1–ESC8) and hunts for suspicious certificates that may indicate active or historical abuse for AD CS privilege escalation.
 
 ## Key Features
 
@@ -91,3 +91,4 @@ Stelark.zip
 - **Incident Response**: Detect signs of AD CS attacks and active exploitation.
 - **Compromise Assessment**: Identify vulnerable configurations before they can be exploited.
 - **Forensic Analysis**: Perform historical analysis of certificate issuance to uncover past abuse.
+
